@@ -1,0 +1,432 @@
+\documentclass[UTF8,a4paper,12pt]{ctexart}
+
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{siunitx}
+\usepackage{hyperref}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\usepackage{longtable}
+
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{statistics}
+\usepgfplotslibrary{groupplots}
+
+\title{基于日步数与睡眠时长的个人行为数据统计分析报告}
+\author{姓名：何子宁\quad 学号：524030910131}
+\date{2025年12月}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+本文基于运动手环记录的90天日度数据（步数与睡眠时长）进行统计分析。首先给出两变量的描述性统计与可视化（时间序列、分布图），随后对步数采用对数正态近似、对睡眠时长采用正态近似，完成参数估计与95\%置信区间，并以“周末与工作日步数是否不同”“步数与睡眠是否相关”为例给出假设检验过程，最后报告线性回归结果。样本中日步数均值为8500.93步、波动较大，睡眠时长均值为7.26小时；相关性检验得到$r=0.518$（$p\approx1.71\times10^{-7}$），回归中睡眠时长的斜率估计为正（约1775步/小时）。结论主要用于说明方法应用，结果仍可能受极端值与其他未纳入因素影响。
+\end{abstract}
+
+\section{引言}
+日步数与睡眠时长是个人健康管理中常用的两个日度指标：步数反映活动水平，睡眠时长反映恢复与作息。以90天的日度记录为样本，可以直观看到波动与分布特点，也能按照课堂方法把概率建模、估计、检验与回归的步骤完整做一遍。
+
+本报告聚焦以下问题：
+\begin{enumerate}
+  \item 日步数与睡眠时长的总体水平与离散程度如何？是否存在异常值或偏态？
+  \item 两变量在90天内的日度波动与趋势如何？是否存在明显的阶段性变化？
+  \item 日步数与睡眠时长是否存在统计相关？睡眠时长对步数的线性关联强度有多大？
+\end{enumerate}
+
+\section{数据集基本介绍}
+\subsection{数据来源}
+数据来自运动手环记录的每日汇总值，按日口径整理得到90天的日步数与睡眠时长序列（起始日期为2025-09-16，截止日期为2025-12-14）。
+
+\subsection{变量与类型}
+\begin{itemize}
+  \item 日期：$t$（按日时间索引）
+  \item 日步数：$Y_t$（离散、非负计数型）
+  \item 睡眠时长：$S_t$（连续型，单位：小时）
+\end{itemize}
+
+为辅助描述时间结构与趋势，可由日期推导衍生变量：
+\begin{itemize}
+  \item 是否周末：$W_t\in\{0,1\}$（周末为1，工作日为0）
+  \item 7日平均步数/睡眠时间：$\overline{Y}_t=\frac{1}{7}\sum_{i=0}^{6}Y_{t-i}$，$\overline{S}_t=\frac{1}{7}\sum_{i=0}^{6}S_{t-i}$
+\end{itemize}
+
+\subsection{数据规模}
+原始核心变量维数为2（$Y_t,S_t$），样本量为$n=90$。用于可视化与检验的$W_t,\overline{Y}_t,\overline{S}_t$为由日期或滑动窗口计算得到的衍生变量。
+
+\subsection{数据表结构}
+表\ref{tab:data}展示数据表结构与样例记录；完整90天数据见附录表\ref{tab:full_all}。
+
+\begin{table}[h]
+\centering
+\sisetup{detect-all}
+\begin{tabular}{lllll}
+\toprule
+日期 & 日步数$Y_t$ & 睡眠时长$S_t$ (h) & 周末$W_t$ & 备注 \\
+\midrule
+2025-09-16 & 812 & 2.3 & 0 &  \\
+2025-09-17 & 1247 & 6.4 & 0 &  \\
+2025-09-18 & 1793 & 4.1 & 0 &  \\
+\bottomrule
+\end{tabular}
+\caption{按日数据记录格式与样例}
+\label{tab:data}
+\end{table}
+
+\subsection{数据预处理}
+\begin{itemize}
+  \item 测量范围统一：步数与睡眠均为按日汇总值，日期连续覆盖90天。
+  \item 缺失值：本样本两变量均无缺失。
+  \item 异常值：步数存在极低值（最低812步），睡眠也存在极端值（最低2.3小时、最高13.2小时）。分析过程中保留原始记录，并在结论中讨论其可能含义与对统计分析的影响。
+\end{itemize}
+
+\subsection{衍生变量}
+为刻画短期噪声与趋势，计算步数与睡眠的7日移动平均，并在图中与原始序列叠加展示。
+
+\section{可视化分析}
+\subsection{总体描述}
+表\ref{tab:desc}给出两变量的描述性统计。均值与标准差反映总体水平与离散程度；考虑到存在极端值，同时报告中位数等稳健统计量。样本期内：
+\begin{itemize}
+  \item 日步数均值为8500.93步、标准差为5421.00步，中位数为6653步；最小值为812步（2025-09-16），最大值为21836步（2025-11-15）。
+  \item 睡眠时长均值为7.26小时、标准差为1.58小时，中位数为7.2小时；最小值为2.3小时（2025-09-16），最大值为13.2小时（2025-11-15）。
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrrr}
+\toprule
+变量 & 均值 & 标准差 & 最小值 & 中位数 & 最大值 \\
+\midrule
+日步数$Y_t$ & 8500.93 & 5421.00 & 812 & 6653 & 21836 \\
+睡眠时长$S_t$ & 7.26 & 1.58 & 2.3 & 7.2 & 13.2 \\
+\bottomrule
+\end{tabular}
+\caption{描述性统计汇总}
+\label{tab:desc}
+\end{table}
+
+\subsection{时间序列图与周期性}
+图\ref{fig:ts_both}展示日步数与睡眠时长的时间序列及各自的7日移动平均。从图中可见步数的波动幅度明显大于睡眠时长；叠加移动平均后，部分时段两者变化方向较一致。
+
+\pgfplotstableread[col sep=space]{%
+day steps sleep weekend ma7_steps ma7_sleep
+1 812 2.3 0 nan nan
+2 1247 6.4 0 nan nan
+3 1793 4.1 0 nan nan
+4 963 7.9 0 nan nan
+5 2218 5.3 1 nan nan
+6 3076 6.7 1 nan nan
+7 15684 8.6 0 3684.71 5.90
+8 2684 7.2 0 3952.14 6.60
+9 4189 6.1 0 4372.43 6.56
+10 3827 8.0 0 4663.00 7.11
+11 5126 6.6 0 5257.71 6.93
+12 4573 7.8 1 5594.14 7.29
+13 2439 4.0 1 5503.14 6.90
+14 5297 7.1 0 4019.29 6.69
+15 6148 6.7 0 4514.14 6.61
+16 4861 8.7 0 4610.14 6.99
+17 3472 5.1 0 4559.43 6.57
+18 5924 7.5 0 4673.43 6.70
+19 18946 9.6 1 6726.71 6.96
+20 5638 6.3 1 7183.71 7.29
+21 6152 7.3 0 7305.86 7.31
+22 6217 6.2 0 7315.71 7.24
+23 4284 8.9 0 7233.29 7.27
+24 2796 4.8 0 7136.71 7.23
+25 5071 7.8 0 7014.86 7.27
+26 3928 6.5 1 4869.43 6.83
+27 3346 8.4 1 4542.00 7.13
+28 5763 7.1 0 4486.43 7.10
+29 4479 5.7 0 4238.14 7.03
+30 6018 7.5 0 4485.86 6.83
+31 6386 6.1 0 4998.71 7.01
+32 7193 8.0 0 5301.86 7.04
+33 6827 7.3 1 5716.00 7.16
+34 17891 8.8 1 7793.86 7.21
+35 8234 8.8 0 8146.86 7.46
+36 7049 5.9 0 8514.00 7.49
+37 9037 7.7 0 8945.29 7.51
+38 8472 9.1 0 9243.29 7.94
+39 7816 6.2 0 9332.29 7.69
+40 9483 7.9 1 9711.71 7.77
+41 10137 6.6 1 8604.00 7.46
+42 10984 8.5 0 8996.86 7.41
+43 9826 6.0 0 9393.57 7.43
+44 11973 7.0 0 9813.00 7.33
+45 13482 9.7 0 10528.71 7.41
+46 12461 6.4 0 11192.29 7.44
+47 13927 8.6 1 11827.14 7.54
+48 20861 9.8 1 13359.14 8.00
+49 15863 10.0 0 14056.14 8.21
+50 14472 6.9 0 14719.86 8.34
+51 16834 9.5 0 15414.29 8.70
+52 15429 7.1 0 15692.43 8.33
+53 5094 6.3 0 14640.00 8.31
+54 16372 6.3 1 14989.29 7.99
+55 5871 8.0 1 12847.86 7.73
+56 17418 7.2 0 13070.00 7.33
+57 5587 7.2 0 11800.71 7.37
+58 18394 6.7 0 12023.57 6.97
+59 6097 6.7 0 10690.43 6.91
+60 6924 6.6 0 10951.86 6.96
+61 21836 13.2 1 11732.43 7.94
+62 20317 6.1 1 13796.14 7.67
+63 15924 8.3 0 13582.71 7.83
+64 9874 6.8 0 14195.14 7.77
+65 7218 7.6 0 12598.57 7.90
+66 4837 8.5 0 12418.57 8.16
+67 2986 5.0 0 11856.00 7.93
+68 5183 7.3 1 9477.00 7.09
+69 6097 6.7 1 7445.57 7.17
+70 8726 8.7 0 6417.29 7.23
+71 9184 6.1 0 6318.71 7.13
+72 10493 9.0 0 6786.57 7.33
+73 6479 7.5 0 7021.14 7.19
+74 4026 5.9 0 7169.71 7.31
+75 2284 6.8 1 6755.57 7.24
+76 14962 6.2 1 8022.00 7.17
+77 17384 7.7 0 9258.86 7.03
+78 827 3.1 0 8065.00 6.60
+79 3379 9.1 0 7048.71 6.61
+80 6924 6.6 0 7112.29 6.49
+81 8793 7.4 0 7793.29 6.70
+82 4686 8.2 1 8136.43 6.90
+83 12473 8.7 1 7780.86 7.26
+84 4327 8.0 0 5915.57 7.30
+85 5094 6.3 0 6525.14 7.76
+86 14918 7.3 0 8173.57 7.50
+87 7634 7.9 0 8275.00 7.69
+88 9781 5.8 0 8416.14 7.46
+89 15500 8.4 1 9961.00 7.49
+90 19573 9.9 1 10975.29 7.66
+}\datatable
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=1 by 2, vertical sep=1cm},
+  width=\linewidth,
+  height=5.5cm,
+  xlabel=天序号,
+  grid=major
+]
+\nextgroupplot[ylabel=步数, use fpu=true, legend pos=north west]
+\addplot+[mark=none, blue] table[x=day, y=steps] {\datatable};
+\addplot+[mark=none, red, thick] table[x=day, y=ma7_steps] {\datatable};
+\legend{步数,7日移动平均}
+\nextgroupplot[ylabel=睡眠时长（h）, use fpu=true, legend pos=north west]
+\addplot+[mark=none, blue] table[x=day, y=sleep] {\datatable};
+\addplot+[mark=none, red, thick] table[x=day, y=ma7_sleep] {\datatable};
+\legend{睡眠,7日移动平均}
+\end{groupplot}
+\end{tikzpicture}
+\caption{日步数与睡眠时长的时间序列及7日移动平均}
+\label{fig:ts_both}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=1 by 2, vertical sep=1cm},
+  width=\linewidth,
+  height=5.5cm,
+  ylabel=频数,
+  ybar interval,
+  grid=major
+]
+\nextgroupplot[xlabel=步数]
+\addplot+[hist={bins=15}] table[y=steps] {\datatable};
+\nextgroupplot[xlabel=睡眠时长（h）]
+\addplot+[hist={bins=12}] table[y=sleep] {\datatable};
+\end{groupplot}
+\end{tikzpicture}
+\caption{日步数与睡眠时长的分布直方图}
+\label{fig:dist_both}
+\end{figure}
+
+\section{数据建模}
+\subsection{(a) 概率模型、参数估计与区间估计}
+考虑到步数为非负且分布右偏明显，本文用对数正态分布对步数作近似；睡眠时长为连续变量，采用正态分布近似，便于进行参数估计与区间估计。
+\begin{itemize}
+  \item 日步数$Y_t$为非负且右偏明显，采用对数正态模型近似：$Y_t\sim \mathrm{LogNormal}(\mu_Y,\sigma_Y^2)$，等价于$Z_t=\ln Y_t\sim \mathcal{N}(\mu_Y,\sigma_Y^2)$。
+  \item 睡眠时长$S_t$为连续变量，采用正态模型：$S_t\sim \mathcal{N}(\mu_S,\sigma_S^2)$。
+\end{itemize}
+
+在独立同分布假设下，对数正态模型的极大似然估计为
+\[
+\hat\mu_Y=\frac{1}{n}\sum_{t=1}^n \ln Y_t,\qquad
+\hat\sigma_Y^2=\frac{1}{n}\sum_{t=1}^n(\ln Y_t-\hat\mu_Y)^2.
+\]
+由样本计算得到$\hat\mu_Y=8.817$、$\hat\sigma_Y=0.733$；对应的模型隐含步数均值为$\exp(\hat\mu_Y+\tfrac12\hat\sigma_Y^2)=8833.32$（步）。对$Z_t$做区间估计得到
+\[
+\mu_Y\in[8.666,\,8.969],\qquad
+\sigma_Y^2\in[0.410,\,0.737].
+\]
+
+在正态模型$S_t\sim\mathcal{N}(\mu_S,\sigma_S^2)$下，$\mu_S$可用样本均值$\bar S$估计，$\sigma_S^2$可由样本方差$s_S^2$刻画。样本计算得到$\bar S=7.258$（h），$s_S=1.581$（h）。进一步由$t$分布与$\chi^2$分布可构造95\%置信区间：
+\[
+\mu_S\in[6.927,\,7.589],\qquad
+\sigma_S^2\in[1.903,\,3.436].
+\]
+
+\subsection{(b) 二维散点图与线性回归}
+取二维随机变量$(X_t,Y_t)=(S_t,Y_t)$。图\ref{fig:scatter}展示散点图与最小二乘拟合直线。
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=\linewidth,
+  height=6cm,
+  xlabel=睡眠时长（小时）,
+  ylabel=步数,
+  use fpu=true,
+  grid=major
+]
+\addplot+[only marks, mark=*, mark size=1.2pt, blue] table[x=sleep, y=steps] {\datatable};
+\addplot+[no marks, red, thick, domain=2.3:13.2, samples=2] {-4385.06 + 1775.47*x};
+\end{axis}
+\end{tikzpicture}
+\caption{日步数与睡眠时长散点图}
+\label{fig:scatter}
+\end{figure}
+
+建立线性回归模型
+\[
+Y_t=\beta_0+\beta_1 X_t+\varepsilon_t,\quad \mathbb{E}(\varepsilon_t\mid X_t)=0,
+\]
+并进一步加入周末指示$W_t$作对比：
+\[
+Y_t=\beta_0+\beta_1 X_t+\beta_2 W_t+\varepsilon_t.
+\]
+表\ref{tab:reg}给出估计结果。模型(1)的$R^2=0.268$，表明线性模型可解释约26.8\%的步数波动；睡眠时长系数为正且显著。加入周末控制后，睡眠时长系数仍为正且显著，而周末项不显著。
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrr|rrr}
+\toprule
+ & \multicolumn{3}{c}{模型(1)：$Y\sim S$} & \multicolumn{3}{c}{模型(2)：$Y\sim S+W$} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+变量 & 系数估计 & 标准误差 & $p$值 & 系数估计 & 标准误差 & $p$值 \\
+\midrule
+截距$\beta_0$ & -4385.06 & 2321.18 & 0.062 \\
+睡眠时长$\beta_1$ & 1775.47 & 312.57 & $1.71\times 10^{-7}$ & 1699.47 & 315.05 & $5.85\times 10^{-7}$ \\
+周末指示$\beta_2$ &  &  &  & 1581.44 & 1093.18 & 0.152 \\
+\bottomrule
+\end{tabular}
+\caption{线性回归结果（因变量：日步数）}
+\label{tab:reg}
+\end{table}
+
+\section{假设检验}
+\subsection{检验1：周末与工作日步数差异}
+为检验步数是否存在显著的“周末效应”，将样本按$W_t$分为工作日组与周末组，比较两组步数均值是否相同。
+\[
+H_0:\mu_{\text{weekend}}=\mu_{\text{weekday}},\quad
+H_1:\mu_{\text{weekend}}\ne\mu_{\text{weekday}}
+\]
+Welch两样本$t$检验的统计量可写为
+\[
+T=\frac{\bar Y_{\text{weekend}}-\bar Y_{\text{weekday}}}{\sqrt{s^2_{\text{weekend}}/n_{\text{weekend}}+s^2_{\text{weekday}}/n_{\text{weekday}}}},
+\]
+其在$H_0$下近似服从自由度为Welch--Satterthwaite公式给出的$t$分布；在显著性水平$\alpha=0.05$下，拒绝域为$|T|>t_{0.975,\mathrm{df}}$。同时报告Mann--Whitney秩和检验（其统计量经标准化后在大样本下近似服从$\mathcal{N}(0,1)$，拒绝域为$|Z|>1.96$）。
+
+\subsection{结果呈现}
+表\ref{tab:weekday_weekend}与表\ref{tab:test}给出两组的描述统计与检验结果。周末步数均值高于工作日（10324.77 vs 7760.00），但在常用显著性水平下差异不显著。
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+组别 & 样本量 & 均值 & 标准差 & 中位数 \\
+\midrule
+工作日 & 64 & 7760.00 & 4598.54 & 6432.5 \\
+周末 & 26 & 10324.77 & 6816.48 & 8155 \\
+\bottomrule
+\end{tabular}
+\caption{工作日/周末的步数统计}
+\label{tab:weekday_weekend}
+\end{table}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrr}
+\toprule
+检验方法 & 统计量 & $p$值 \\
+\midrule
+两样本$t$检验（Welch） & $t=1.763$（df=34.63） & 0.087 \\
+秩和检验（Mann--Whitney） & $z=-1.166$ & 0.244 \\
+\bottomrule
+\end{tabular}
+\caption{组间差异检验结果}
+\label{tab:test}
+\end{table}
+
+\subsection{检验2：步数与睡眠时长的相关性}
+将“是否存在线性相关”表述为对总体相关系数的检验：
+\[
+H_0:\rho=0,\quad H_1:\rho\ne 0.
+\]
+在$H_0$下，检验统计量
+\[
+T=\frac{r\sqrt{n-2}}{\sqrt{1-r^2}}
+\]
+服从自由度为$n-2$的$t$分布。给定显著性水平$\alpha=0.05$，拒绝域为$|T|>t_{0.975,n-2}$；也可使用$p$值规则。由样本计算得到$r=0.518$（95\% CI：$[0.348,0.655]$），对应$t=5.680$（df=88），$p\approx1.71\times10^{-7}$，据此拒绝$H_0$。若检验不显著，则说明在该样本下没有足够证据支持线性相关。散点图见图\ref{fig:scatter}。
+
+\subsubsection{结果呈现}
+\begin{table}[h]
+\centering
+\begin{tabular}{ccccc}
+\toprule
+$r$ & 95\% CI & $t$（df） & $p$值 & 结论（$\alpha=0.05$） \\
+\midrule
+0.518 & $[0.348,0.655]$ & 5.680（88） & $1.71\times 10^{-7}$ & 拒绝$H_0$ \\
+\bottomrule
+\end{tabular}
+\caption{相关性检验结果（$H_0:\rho=0$）}
+\label{tab:corr_test}
+\end{table}
+
+\section{结论}
+\begin{itemize}
+  \item 本文依次完成数据集介绍、可视化、概率建模与参数估计、区间估计、假设检验与线性回归，并给出对应的计算结果与解释。
+  \item 在2025-09-16至2025-12-14的90天样本中，日步数均值为8500.93步、标准差为5421.00步，中位数为6653步，存在极低步数日（812步）；睡眠时长均值为7.26小时、标准差为1.58小时，中位数为7.2小时，亦存在极端睡眠日（2.3小时与13.2小时）。
+  \item 两变量关系方面，日步数与睡眠时长呈中等强度正相关（Pearson $r=0.518$，95\% CI：$[0.348,0.655]$；Spearman $\rho=0.409$）。线性回归结果显示：睡眠时长每增加1小时，日步数平均增加约1775步，且在统计意义上显著。
+  \item 补充分析表明周末步数均值高于工作日，但差异未达到常用显著性水平；在回归中加入周末控制后，睡眠对步数的正向关联仍显著，而周末项不显著。
+  \item 本文只基于两个核心变量做分析，且数据为单人记录；步数与睡眠都容易受当天安排、设备记录等影响，因此结果更适合作为相关性与方法示例，而非因果结论。
+\end{itemize}
+
+\section{参考文献}
+\begin{thebibliography}{9}
+\bibitem{intro_stat}
+卫淑芝, 熊德文, 皮玲. 概率论与数理统计[M].高等教育出版社, 2020
+\end{thebibliography}
+\appendix
+\section{附录：完整数据}
+\footnotesize
+\pgfplotstabletypeset[
+  begin table=\begin{longtable},
+  end table=\end{longtable},
+  columns={day,steps,sleep,weekend},
+  columns/day/.style={column name=天序号},
+  columns/steps/.style={column name=步数, fixed, precision=0},
+  columns/sleep/.style={column name=睡眠时长(h), fixed, precision=1},
+  columns/weekend/.style={column name=周末, fixed, precision=0},
+  every head row/.style={
+    before row=\caption{完整数据（90天）}\label{tab:full_all}\\\toprule,
+    after row=\midrule\endfirsthead
+              \caption[]{完整数据（90天，续）}\\\toprule
+              天序号 & 步数 & 睡眠时长(h) & 周末\\
+              \midrule\endhead
+              \midrule\multicolumn{4}{r}{续下页}\\\endfoot
+              \bottomrule\endlastfoot
+  },
+]{\datatable}
+
+
+
+
+\end{document}
