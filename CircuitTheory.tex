@@ -1,0 +1,222 @@
+\documentclass[UTF8,a4paper,12pt]{ctexart}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{circuitikz} % 用于绘制电路图
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{booktabs}
+
+% 设置页面风格
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{电路理论自编习题}
+\rhead{非线性电路与混沌}
+\cfoot{\thepage}
+
+\title{\textbf{基于非线性负阻元件的蔡氏电路动力学分析}}
+\author{何子宁}
+\date{Jan. 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{问题来源}
+
+本题灵感来源于本学期的《大学物理实验》课程。在“非线性电路混沌现象”实验中，我实际搭建了蔡氏电路并观察到了双涡卷吸引子。结合《电路理论》课程中关于非线性电阻和动态电路分析的内容，我将实验电路抽象为如下理论模型，并尝试从电路原理角度求解其静态工作点，以解释电路起振的初始条件。
+
+\section{自编题目}
+
+\textbf{【题目描述】} 
+
+图 \ref{fig:chua_circuit} 所示为蔡氏电路（Chua's Circuit）的简化模型。电路包含四个线性动态/静态元件：电感 $L$、电阻 $R$、电容 $C_1$ 和 $C_2$。最右侧的元件 $N_R$ 是一个非线性有源电阻（蔡氏二极管），其伏安特性曲线 $i_R = g(v_R)$ 如图 \ref{fig:nr_iv} 所示。
+
+\begin{figure}[h]
+    \centering
+    \begin{circuitikz}[american, scale=1.0]
+        % 绘制电路主体
+        \draw (0,0) coordinate(GND) to[C, l=$C_2$, v=$v_{C2}$] (0,3) coordinate(N2);
+        \draw (0,0) -- (6,0);
+        \draw (N2) to[L, l=$L$, i=$i_L$] (3,3) coordinate(N1);
+        \draw (3,0) to[R, l=$R$, i<=$i_R$] (3,3); % 这里R实际上是串联在C1和C2之间的，标准Chua电路通常是 R 连接 C1 C2
+        % 修正标准Chua电路结构：
+        % L 并联 C2, 然后串联 R, 然后并联 C1 和 NR
+        % 让我们画一个标准的 Chua's Circuit 拓扑
+    \end{circuitikz}
+    
+    % 重新绘制标准拓扑
+    \begin{circuitikz}[american, scale=1.0]
+        \draw (0,0) coordinate(ref) to[L, l=$L$, i=$i_L$] (0,3) coordinate(n_L);
+        \draw (n_L) -- (2,3) coordinate(n_C2);
+        \draw (2,0) to[C, l=$C_2$, v=$v_2$] (2,3);
+        \draw (2,3) to[R, l=$R$] (5,3) coordinate(n_C1);
+        \draw (5,0) to[C, l=$C_1$, v=$v_1$] (5,3);
+        \draw (5,3) -- (7,3) coordinate(n_NR);
+        \draw (7,0) to[R, l=$N_R$] (7,3); % 用R代替非线性电阻符号，加文字说明
+        \node at (7.8, 1.5) {$g(v_1)$};
+        
+        \draw (0,0) -- (7,0);
+        
+        % 标注节点
+        \node[above] at (n_C2) {节点 2};
+        \node[above] at (n_C1) {节点 1};
+    \end{circuitikz}
+    \caption{蔡氏电路原理图}
+    \label{fig:chua_circuit}
+\end{figure}
+
+非线性电阻 $N_R$ 的伏安特性 $i_R = g(v_1)$ 满足以下分段线性关系（其中 $v_1$ 为电容 $C_1$ 两端电压）：
+\begin{equation}
+    g(v_1) = m_1 v_1 + \frac{1}{2}(m_0 - m_1)(|v_1 + E| - |v_1 - E|)
+\end{equation}
+其几何含义如图 \ref{fig:nr_iv} 所示：在 $|v_1| < E$ 区域斜率为 $m_0$，在 $|v_1| > E$ 区域斜率为 $m_1$。通常实验中配置 $m_0 < m_1 < 0$，即表现为负阻特性。
+
+\begin{figure}[h]
+    \centering
+    \begin{tikzpicture}[scale=0.8]
+        \draw[->] (-4,0) -- (4,0) node[right] {$v_1$};
+        \draw[->] (0,-3) -- (0,3) node[above] {$i_R$};
+        
+        % 绘制分段线性曲线
+        \draw[thick, blue] (-3, -1.5) -- (-1.5, -2.5) -- (1.5, 2.5) -- (3, 1.5);
+        
+        % 标注
+        \draw[dashed] (1.5,0) node[below]{$E$} -- (1.5, 2.5);
+        \draw[dashed] (-1.5,0) node[above]{$-E$} -- (-1.5, -2.5);
+        \node at (0.5, 1.5) {斜率 $m_0$};
+        \node at (2.5, 2.2) {斜率 $m_1$};
+    \end{tikzpicture}
+    \caption{非线性电阻 $N_R$ 的 $i-v$ 特性曲线}
+    \label{fig:nr_iv}
+\end{figure}
+
+\textbf{问题：}
+\begin{enumerate}
+    \item 选取电容电压 $v_1, v_2$ 和电感电流 $i_L$ 作为状态变量，列写该电路的状态方程。
+    \item 设电路参数满足 $G = 1/R$，且 $m_0 < -G < m_1 < 0$。当电路处于\textbf{直流稳态}时（即电容相当于开路，电感相当于短路），试求此时电路的\textbf{静态工作点}（即 $v_1, v_2, i_L$ 的值）。
+    \item （选做）结合第四章非线性电阻的\textbf{负载线法}（Load Line Method）思想，讨论为什么在 $m_0 < -G$ 的条件下会存在非零的静态工作点。
+\end{enumerate}
+
+\newpage
+
+\section{解答过程}
+
+\subsection{1. 建立状态方程}
+选取独立电容电压 $v_1, v_2$ 和独立电感电流 $i_L$ 为状态变量。
+
+\textbf{(1) 对节点 1 应用 KCL：}
+流出节点的电流之和为零。
+\begin{equation*}
+    C_1 \frac{dv_1}{dt} + \frac{v_1 - v_2}{R} + g(v_1) = 0
+\end{equation*}
+整理得：
+\begin{equation}
+    \frac{dv_1}{dt} = \frac{1}{C_1} [ G(v_2 - v_1) - g(v_1) ]
+\end{equation}
+其中 $G = 1/R$ 为线性电阻的电导。
+
+\textbf{(2) 对节点 2 应用 KCL：}
+\begin{equation*}
+    C_2 \frac{dv_2}{dt} + \frac{v_2 - v_1}{R} + i_L = 0
+\end{equation*}
+整理得：
+\begin{equation}
+    \frac{dv_2}{dt} = \frac{1}{C_2} [ G(v_1 - v_2) - i_L ]
+\end{equation}
+
+\textbf{(3) 对电感支路应用 KVL：}
+电感电压等于节点2电压（注意参考方向，图中 $i_L$ 从下往上流则 $v_L = -v_2$，若 $i_L$ 定义为从左向右流入电感，则需根据图示调整）。
+假设图 \ref{fig:chua_circuit} 中 $i_L$ 方向定义为流出节点2进入地（或电感两端电压为 $v_2 - 0$），则：
+\begin{equation*}
+    L \frac{di_L}{dt} = -v_2 \quad (\text{假设 } i_L \text{ 方向如图中流向电感支路且电感接地})
+\end{equation*}
+\textit{注：通常蔡氏电路标准方程中，电感电流方向定义不同会相差一个负号。若定义 $i_L$ 为流过L的电流，且L两端电压为 $v_L = v_2$，则：}
+\begin{equation}
+    \frac{di_L}{dt} = -\frac{1}{L} v_2
+\end{equation}
+
+综上，电路的状态方程组为：
+\begin{equation}
+    \left\{
+    \begin{aligned}
+        \frac{dv_1}{dt} &= \frac{1}{C_1} [ G(v_2 - v_1) - g(v_1) ] \\
+        \frac{dv_2}{dt} &= \frac{1}{C_2} [ G(v_1 - v_2) - i_L ] \\
+        \frac{di_L}{dt} &= -\frac{1}{L} v_2
+    \end{aligned}
+    \right.
+\end{equation}
+
+\subsection{2. 求解静态工作点}
+当电路处于直流稳态时，所有状态变量对时间的导数为零，即 $\frac{d}{dt} = 0$。
+令状态方程左边为 0：
+\begin{equation}
+    \left\{
+    \begin{aligned}
+        G(v_2 - v_1) - g(v_1) &= 0 \quad \cdots (a) \\
+        G(v_1 - v_2) - i_L &= 0 \quad \cdots (b) \\
+        v_2 &= 0 \quad \cdots (c)
+    \end{aligned}
+    \right.
+\end{equation}
+
+由 (c) 式直接得：
+\begin{equation}
+    v_2 = 0
+\end{equation}
+
+将 $v_2=0$ 代入 (a) 式：
+\begin{equation}
+    G(0 - v_1) - g(v_1) = 0 \implies g(v_1) = -G v_1
+\end{equation}
+该式即为非线性电阻的负载线方程。我们需要求解非线性电阻特性曲线 $i = g(v_1)$ 与通过原点的直线 $i = -G v_1$ 的交点。
+
+根据 $g(v_1)$ 的分段线性定义：
+\[ g(v_1) = \begin{cases} 
+m_1 v_1 + (m_0 - m_1)E & v_1 > E \\
+m_0 v_1 & |v_1| \le E \\
+m_1 v_1 - (m_0 - m_1)E & v_1 < -E 
+\end{cases} \]
+
+我们需要解方程 $g(v_1) + G v_1 = 0$：
+
+\textbf{情况 1：$|v_1| \le E$}
+\[ m_0 v_1 + G v_1 = 0 \implies (m_0 + G) v_1 = 0 \]
+由于 $m_0 \ne -G$，故解得 $v_1 = 0$。
+此时 $v_2=0$，代入 (b) 式得 $i_L = G(0-0) = 0$。
+\textbf{工作点 $Q_0$：} $(0, 0, 0)$。
+
+\textbf{情况 2：$v_1 > E$}
+\[ m_1 v_1 + (m_0 - m_1)E + G v_1 = 0 \]
+\[ (m_1 + G) v_1 = (m_1 - m_0)E \]
+\[ v_1 = \frac{m_1 - m_0}{m_1 + G} E \]
+题目给定条件 $m_0 < -G < m_1 < 0$。
+\begin{itemize}
+    \item 分子 $m_1 - m_0 > 0$（因为 $m_1$ 大于 $m_0$）
+    \item 分母 $m_1 + G$：因为 $-G < m_1$，所以 $G + m_1 > 0$。
+\end{itemize}
+因此 $v_1$ 为正值。我们需要验证求出的 $v_1$ 是否满足前提 $v_1 > E$：
+\begin{align*}
+    \frac{m_1 - m_0}{m_1 + G} E > E &\iff \frac{m_1 - m_0}{m_1 + G} > 1 \\
+    &\iff m_1 - m_0 > m_1 + G \\
+    &\iff -m_0 > G \\
+    &\iff m_0 < -G
+\end{align*}
+该结果满足题目给定条件 $m_0 < -G$，故解有效。
+此时 $v_2=0$，代入 (b) 式得 $i_L = G v_1 = G \frac{m_1 - m_0}{m_1 + G} E$。
+\textbf{工作点 $Q_+$}：$(\frac{m_1 - m_0}{m_1 + G} E, 0, G \frac{m_1 - m_0}{m_1 + G} E)$。
+
+\textbf{情况 3：$v_1 < -E$}
+根据对称性，必然存在另一个工作点 $Q_-$。
+\[ v_1 = -\frac{m_1 - m_0}{m_1 + G} E \]
+同理可证该解满足 $v_1 < -E$。
+\textbf{工作点 $Q_-$}：$(-\frac{m_1 - m_0}{m_1 + G} E, 0, -G \frac{m_1 - m_0}{m_1 + G} E)$。
+
+\section{结果讨论}
+\begin{itemize}
+    \item 计算结果表明，在 $m_0 < -G$ 条件下，电路存在 \textbf{3个静态工作点}：原点 $Q_0$ 和两个对称的非零工作点 $Q_+, Q_-$。
+    \item 结合实验现象分析，系统的轨迹围绕这三个工作点进行复杂的运动，最终在特定的参数下形成了双涡卷（Double Scroll）混沌吸引子。
+    \item 本题通过建立蔡氏电路的状态方程，并利用非线性电阻的分段线性特性求解了电路的静态工作点，展示了如何利用基础电路理论工具研究非线性动力学问题。
+\end{itemize}
+
+\end{document}
